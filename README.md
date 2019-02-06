@@ -1,7 +1,7 @@
 # PingMonitor
 Ping monitor GUI
 
-![PingMonitor](https://github.com/mirano-galijasevic/pingmonitor/blob/master/pingmonitor.png)
+![PingMonitor](https://github.com/mirano-galijasevic/PingMonitor/blob/master/PingMonitor.PNG)
 
 Simple application to monitor the state of network by sending a continuous ping requests, and displaying results in the chart, along with the statistics.
 
