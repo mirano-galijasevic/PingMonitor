@@ -3,3 +3,5 @@
 ################################################################################
 
 /PingGraph/bin
+/PingGraph/obj
+/.vs/PingGraph/v15/Server/sqlite3
