@@ -113,6 +113,8 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Section.cs" />
+    <Compile Include="SectionBuilder.cs" />
     <Compile Include="Settings.cs" />
     <Compile Include="Snapshot.cs" />
     <Compile Include="Stats.cs" />

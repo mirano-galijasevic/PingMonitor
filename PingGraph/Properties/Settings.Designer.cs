@@ -37,7 +37,7 @@ namespace PingGraph.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("1000")]
+        [global::System.Configuration.DefaultSettingValueAttribute("600")]
         public ushort pingTimeout {
             get {
                 return ((ushort)(this["pingTimeout"]));

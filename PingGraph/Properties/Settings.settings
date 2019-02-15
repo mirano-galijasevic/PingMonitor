@@ -6,7 +6,7 @@
       <Value Profile="(Default)">www.google.com</Value>
     </Setting>
     <Setting Name="pingTimeout" Type="System.UInt16" Scope="User">
-      <Value Profile="(Default)">1000</Value>
+      <Value Profile="(Default)">600</Value>
     </Setting>
     <Setting Name="pingDelay" Type="System.UInt16" Scope="User">
       <Value Profile="(Default)">1</Value>

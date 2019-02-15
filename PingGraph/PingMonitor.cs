@@ -45,7 +45,7 @@ namespace PingGraph
         /// <summary>
         /// Ping request timeout in milliseconds
         /// </summary>
-        private ushort _pingTimeout = 1000;
+        private ushort _pingTimeout = 600;
 
         /// <summary>
         /// Min and max roundtrip
@@ -91,6 +91,12 @@ namespace PingGraph
         /// Stats data
         /// </summary>
         private Tuple<ushort, Tuple<ushort, DateTime>, Tuple<ushort, DateTime>> _statsData = null;
+
+        /// <summary>
+        /// Section names
+        /// </summary>
+        private string[] _sectionNames = new string[]
+                    { "TOTAL REQUESTS", "FAILED REQUESTS", "ICMP TRESHOLD", "AVG ROUNDTRIP", "MIN ROUNDTRIP", "MAX ROUNDTRIP" };
 
         /// <summary>
         /// Initializing
@@ -338,7 +344,9 @@ namespace PingGraph
 
             Stats stats = new Stats( 
                 _statsData.Item1, _statsData.Item2, _statsData.Item3, _maxRoundTripTreshold, _overTreshold, _failedPingRequests, _totalRequests );
-            StatsDraw statsDraw = new StatsDraw( stats, this.StatsCanvas );
+
+            SectionBuilder builder = new SectionBuilder( stats, _sectionNames );
+            StatsDraw statsDraw = new StatsDraw( this.StatsCanvas, builder.Build );
 
             if ( !clear )
                 statsDraw.Draw();
@@ -604,7 +612,11 @@ namespace PingGraph
         /// <param name="e"></param>
         private void PingMonitor_Resize( object sender, EventArgs e )
         {
-            splitContainer1.SplitterDistance = splitContainer1.Height - 149;
+            if ( splitContainer1.Height < 160 ) 
+                    return;
+
+                splitContainer1.SplitterDistance = 
+                    splitContainer1.Height - 160 < splitContainer1.Panel2MinSize ? splitContainer1.Panel2MinSize + 1 : splitContainer1.Height - 160;
         }
 
         /// <summary>
@@ -614,7 +626,11 @@ namespace PingGraph
         /// <param name="e"></param>
         private void PingMonitor_Load( object sender, EventArgs e )
         {
-            splitContainer1.SplitterDistance = splitContainer1.Height - 149;
+            if ( splitContainer1.Height < 160 )
+                return;
+
+            splitContainer1.SplitterDistance = 
+                splitContainer1.Height - 160 < splitContainer1.Panel2MinSize ? splitContainer1.Panel2MinSize + 1 : splitContainer1.Height - 160;
         }
 
         /// <summary>

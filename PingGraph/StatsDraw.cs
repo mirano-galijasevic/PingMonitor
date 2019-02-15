@@ -13,19 +13,29 @@ namespace PingGraph
     public class StatsDraw
     {
         /// <summary>
-        /// Stats data
-        /// </summary>
-        private Stats _statsData = null;
-
-        /// <summary>
         /// Picture box
         /// </summary>
-        PictureBox _pictureBox = null;
+        private PictureBox _pictureBox = null;
+
+        /// <summary>
+        /// Sections to draw
+        /// </summary>
+        private Section[] _sections = null;
 
         /// <summary>
         /// Object used for synchronization
         /// </summary>
         public static object _locker = new object();
+
+        /// <summary>
+        /// Above treshold
+        /// </summary>
+        private int _aboveTreshold = -1;
+
+        /// <summary>
+        /// Above treshold X position
+        /// </summary>
+        private float _aboveTresholdX = 0;
 
         private int _verticalLineHeight = 45;
         private int _indicatorFontSize = 10;
@@ -35,14 +45,18 @@ namespace PingGraph
         private string _indicatorValueFont = "Calibri";
         private int _horizontalDistanceBetweenSections = 116;
         private int _verticalDistanceSecondsRowSections = 74;
+        private int _paddingSection = 12, _paddingSectionVertical = 16;
 
         /// <summary>
         /// C'tor
         /// </summary>
-        public StatsDraw( Stats stats, PictureBox pictureBox )
+        public StatsDraw( PictureBox pictureBox, Func<Section[]> sectionBuilder )
         {
-            _statsData = stats;
+            if ( pictureBox == null || sectionBuilder == null )
+                throw new ArgumentNullException();
+
             _pictureBox = pictureBox;
+            _sections = sectionBuilder.Invoke();
         }
 
         /// <summary>
@@ -50,153 +64,108 @@ namespace PingGraph
         /// </summary>
         public void Draw()
         {
+            if ( _sections == null )
+                return;
+
             bool ok = Monitor.TryEnter( _locker, TimeSpan.FromMilliseconds( 100 ) );
             ok = true;
+
             if ( ok )
             {
+                Bitmap bmp = new Bitmap( _pictureBox.Width, _pictureBox.Height );
+                _pictureBox.BackColor = Color.White;
+
+                int msPositionX = 0;
+                int valLen = 0, rightEdge = 0;
+
+                using ( Graphics g = Graphics.FromImage( bmp ) )
                 {
-                    Bitmap bmp = new Bitmap( _pictureBox.Width, _pictureBox.Height );
-                    _pictureBox.BackColor = Color.White;
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixel;
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
 
-                    int msPositionX = 0;
-                    int val, valLen;
-
-                    using ( Graphics g = Graphics.FromImage( bmp ) )
+                    for ( int i = 0; i < 6; i++ )
                     {
-                        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixel;
-                        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+                        // Where to draw?
+                        Point toDraw = new Point( _paddingSection + ( ( ( i < 3 ) ? i : i - 3 ) * _horizontalDistanceBetweenSections ),
+                            i < 3 ? _paddingSectionVertical : _paddingSectionVertical + _verticalDistanceSecondsRowSections );
 
-                        // Total requests
-                        Point ptTotalRequests = new Point( 12, 12 );
-                        Pen pen = new Pen( Color.Green, 4f );
-                        g.DrawLine( pen, ptTotalRequests.X, ptTotalRequests.Y, ptTotalRequests.X, ptTotalRequests.Y + _verticalLineHeight );
+                        if ( i == 2 )
+                            rightEdge = toDraw.X + 4 + _horizontalDistanceBetweenSections;
 
-                        g.DrawString( $"TOTAL REQUESTS", 
-                            new Font( _indicatorNameFont, _indicatorFontSize, FontStyle.Bold, GraphicsUnit.Pixel ), 
-                            Brushes.Black, (float)(ptTotalRequests.X + 4 ), (float) ptTotalRequests.Y );
+                        // Draw line
+                        g.DrawLine( _sections[ i ].SectionLinePen, toDraw.X, toDraw.Y, toDraw.X, toDraw.Y + _verticalLineHeight );
 
-                        g.DrawString( $"{ _statsData.TotalRequests.ToString() }",
-                            new Font( _indicatorValueFont, _valueFontSize, FontStyle.Bold, GraphicsUnit.Pixel ), 
-                            Brushes.Green, ( float ) ( ptTotalRequests.X + 4 ), ( float ) (ptTotalRequests.Y + 6) );
-
-                        // Failed requests
-                        Point ptFailedRequests = new Point( ptTotalRequests.X + _horizontalDistanceBetweenSections, 12 );
-                        Pen pen2 = new Pen( Color.Magenta, 4f );
-                        g.DrawLine( pen2, ptFailedRequests.X, ptFailedRequests.Y, ptFailedRequests.X, ptFailedRequests.Y + _verticalLineHeight );
-
-                        g.DrawString( $"FAILED REQUESTS",
+                        // Section name
+                        g.DrawString( _sections[ i ].SectionTitle,
                             new Font( _indicatorNameFont, _indicatorFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.Black, ( float ) ( ptFailedRequests.X + 4 ), ( float ) ptFailedRequests.Y );
+                            Brushes.Black, ( float )( toDraw.X + 4 ), ( float )toDraw.Y );
 
-                        g.DrawString( $"{ _statsData.FailedRequests.ToString() }",
+                        // Section value
+                        g.DrawString( $"{ _sections[ i ].SectionValue.Item1 }",
                             new Font( _indicatorValueFont, _valueFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            _statsData.FailedRequests > 0 ? Brushes.Magenta : Brushes.Black, 
-                            ( float ) ( ptFailedRequests.X + 4 ), ( float ) ( ptFailedRequests.Y + 6 ) );
+                            _sections[ i ].SectionBrush, ( float )( toDraw.X + 4 ), ( float )( toDraw.Y + 6 ) );
 
-                        // Treshold
-                        Point ptTreshold = new Point( ptFailedRequests.X + _horizontalDistanceBetweenSections, 12 );
-                        Pen pen3 = new Pen( Color.Black, 4f );
-                        g.DrawLine( pen3, ptTreshold.X, ptTreshold.Y, ptTreshold.X, ptTreshold.Y + _verticalLineHeight );
+                        // Draw 'ms' to the right of the value
+                        if ( _sections[ i ].SectionValue.Item2.Length > 0 )
+                        {
+                            valLen = _sections[ i ].SectionValue.Item1.Length;
+                            msPositionX = toDraw.X + ( valLen * 23 );
 
-                        g.DrawString( $"ICMP TRESHOLD",
-                            new Font( _indicatorNameFont, _indicatorFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.Black, ( float ) ( ptTreshold.X + 4 ), ( float ) ptTreshold.Y );
-
-                        g.DrawString( $"{ _statsData.RoundTripTreshold.ToString() }",
-                            new Font( _indicatorValueFont, _valueFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.DarkGray, ( float ) ( ptTreshold.X + 4 ), ( float ) ( ptTreshold.Y + 6 ) );
-
-                        val = _statsData.RoundTripTreshold;
-                        valLen = val.ToString().Length;
-                        msPositionX = ptTreshold.X + ( valLen * 23 );
-
-                        g.DrawString( $"ms",
-                            new Font( _indicatorValueFont, (int)Math.Round( ((double)_valueFontSize / 3), 0 ), FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.DarkGray, ( float ) msPositionX, ( float ) ( ptTreshold.Y + 28 ) );
-
-                        // Above treshold
-                        Point ptAboveTreshold = new Point( ptTreshold.X + _horizontalDistanceBetweenSections, 12 );
-                        Pen pen13 = new Pen( Color.DarkGoldenrod, 4f );
-                        g.DrawLine( pen13, ptTreshold.X + _horizontalDistanceBetweenSections, ptTreshold.Y +2, 
-                            ptTreshold.X + _horizontalDistanceBetweenSections + 120, ptTreshold.Y + 2 );
-
-                        g.DrawString( $"OVER TRESHOLD", new Font( _indicatorNameFont, _indicatorFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.Black, ( float ) ( ptAboveTreshold.X + 14 ), ( float ) ptAboveTreshold.Y + 8 );
-
-                        Font aboveTresholdFont = new Font( _indicatorValueFont, _valueFontSizeBigger, FontStyle.Bold, GraphicsUnit.Pixel );
-
-                        float fontSizeInPixels = aboveTresholdFont.SizeInPoints / 72 * g.DpiX;
-                        float aboveTresholdX = ptAboveTreshold.X + (( 120 - fontSizeInPixels ) / 2);
-
-                        g.DrawString( $"{ _statsData.OverTreshold.ToString() }", aboveTresholdFont,
-                            Brushes.DarkGoldenrod, aboveTresholdX, ( float ) ( ptAboveTreshold.Y + 12 ) );
-
-                        // Average roundtrip
-                        Point ptAverage = new Point( 12, _verticalDistanceSecondsRowSections );
-                        Pen pen4 = new Pen( Color.Black, 4f );
-                        g.DrawLine( pen4, ptAverage.X, ptAverage.Y, ptAverage.X, ptAverage.Y + _verticalLineHeight );
-
-                        g.DrawString( $"AVG ROUNDTRIP",
-                            new Font( _indicatorNameFont, _indicatorFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.Black, ( float ) ( ptAverage.X + 4 ), ( float ) ptAverage.Y );
-                        
-                        g.DrawString( $"{ _statsData.StatsData.Item1.ToString() }",
-                            new Font( _indicatorValueFont, _valueFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.Black, ( float ) ( ptAverage.X + 4 ), ( float ) ( ptAverage.Y + 6 ) );
-
-                        val = _statsData.StatsData.Item1;
-                        valLen = val.ToString().Length;
-                        msPositionX = ptAverage.X + (valLen * 23 );
-                        g.DrawString( $"ms",
-                           new Font( _indicatorValueFont, ( int ) Math.Round( ( ( double ) _valueFontSize / 3 ), 0 ), FontStyle.Bold, GraphicsUnit.Pixel ),
-                           Brushes.Black, ( float ) msPositionX, ( float ) ( ptAverage.Y + 28 ) );
-
-                        // MIN roundtrip
-                        Point ptMinRoundtrip = new Point( 12 + _horizontalDistanceBetweenSections, _verticalDistanceSecondsRowSections );
-                        Pen pen5 = new Pen( Color.CadetBlue, 4f );
-                        g.DrawLine( pen5, ptMinRoundtrip.X, ptMinRoundtrip.Y, ptMinRoundtrip.X, ptMinRoundtrip.Y + _verticalLineHeight );
-
-                        g.DrawString( $"MIN ROUNDTRIP",
-                            new Font( _indicatorNameFont, _indicatorFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.Black, ( float ) ( ptMinRoundtrip.X + 4 ), ( float ) ptMinRoundtrip.Y );
-
-                        g.DrawString( $"{ _statsData.StatsData.Item2.Item1.ToString() }",
-                            new Font( _indicatorValueFont, _valueFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.CadetBlue, ( float ) ( ptMinRoundtrip.X + 4 ), ( float ) ( ptMinRoundtrip.Y + 6 ) );
-
-                        val = _statsData.StatsData.Item2.Item1;
-                        valLen = val.ToString().Length;
-                        msPositionX = ptMinRoundtrip.X + ( valLen * 23 );
-                        g.DrawString( $"ms",
-                           new Font( _indicatorValueFont, ( int ) Math.Round( ( ( double ) _valueFontSize / 3 ), 0 ), FontStyle.Bold, GraphicsUnit.Pixel ),
-                           Brushes.CadetBlue, ( float ) msPositionX, ( float ) ( ptAverage.Y + 28 ) );
-
-                        // MAX roundtrip
-                        Point ptMaxRoundtrip = new Point( ptMinRoundtrip.X + _horizontalDistanceBetweenSections, _verticalDistanceSecondsRowSections );
-                        Pen pen6 = new Pen( Color.Red, 4f );
-                        g.DrawLine( pen6, ptMaxRoundtrip.X, ptMaxRoundtrip.Y, ptMaxRoundtrip.X, ptMaxRoundtrip.Y + _verticalLineHeight );
-
-                        g.DrawString( $"MAX ROUNDTRIP",
-                            new Font( _indicatorNameFont, _indicatorFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.Black, ( float ) ( ptMaxRoundtrip.X + 4 ), ( float ) ptMaxRoundtrip.Y );
-
-                        g.DrawString( $"{ _statsData.StatsData.Item3.Item1.ToString() }",
-                            new Font( _indicatorValueFont, _valueFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
-                            Brushes.Red, ( float ) ( ptMaxRoundtrip.X + 4 ), ( float ) ( ptMaxRoundtrip.Y + 6 ) );
-
-                        val = _statsData.StatsData.Item3.Item1;
-                        valLen = val.ToString().Length;
-                        msPositionX = ptMaxRoundtrip.X + ( valLen * 23 );
-                        g.DrawString( $"ms",
-                           new Font( _indicatorValueFont, ( int ) Math.Round( ( ( double ) _valueFontSize / 3 ), 0 ), FontStyle.Bold, GraphicsUnit.Pixel ),
-                           Brushes.Red, ( float ) msPositionX, ( float ) ( ptMaxRoundtrip.Y + 28 ) );
+                            g.DrawString( _sections[ i ].SectionValue.Item2,
+                                new Font( _indicatorValueFont, ( int )Math.Round( ( ( double )_valueFontSize / 3 ), 0 ), FontStyle.Bold, GraphicsUnit.Pixel ),
+                                _sections[ i ].SectionBrush, ( float )msPositionX, ( float )( toDraw.Y + 28 ) );
+                        }
                     }
 
-                    _pictureBox.Image = bmp;
+                    // Draw the total over treshold
+                    Point aboveTresholdPos = new Point( rightEdge, _paddingSectionVertical );
+
+                    Pen pen = new Pen( Color.DarkGoldenrod, 4f );
+                    g.DrawLine( pen, aboveTresholdPos.X, aboveTresholdPos.Y + 2,
+                        aboveTresholdPos.X + _horizontalDistanceBetweenSections, aboveTresholdPos.Y + 2 );
+
+                    g.DrawString( $"OVER TRESHOLD", new Font( _indicatorNameFont, _indicatorFontSize, FontStyle.Bold, GraphicsUnit.Pixel ),
+                        Brushes.Black, ( float )( aboveTresholdPos.X + 14 ), ( float )aboveTresholdPos.Y + 8 );
+
+                    Font aboveTresholdFont = new Font( _indicatorValueFont, _valueFontSizeBigger, FontStyle.Bold, GraphicsUnit.Pixel );
+
+                    // Only recalculate the position if it has changed
+                    if ( _sections[ 0 ].SectionStats.OverTreshold > _aboveTreshold )
+                    {
+                        _aboveTreshold = _sections[ 0 ].SectionStats.OverTreshold;
+                        _aboveTresholdX = aboveTresholdPos.X + (
+                            ( _horizontalDistanceBetweenSections - GetStringWidth( g, _aboveTreshold.ToString(), aboveTresholdFont ) ) / 2 );
+                    }
+
+                    g.DrawString( _aboveTreshold.ToString(), aboveTresholdFont, Brushes.DarkGoldenrod, 
+                        _aboveTresholdX, ( float )( aboveTresholdPos.Y + 12 ) );
                 }
+
+                _pictureBox.Image = bmp;
             }
             else
                 Debug.WriteLine( "Could not acquire lock to drawn on canvas." );
+        }
+
+        /// <summary>
+        /// Calculate the width of the string in pixels
+        /// </summary>
+        /// <param name="graphics"></param>
+        /// <param name="value"></param>
+        /// <param name="font"></param>
+        /// <returns></returns>
+        private int GetStringWidth( Graphics graphics, string value, Font font )
+        {
+            StringFormat format = new System.Drawing.StringFormat();
+            RectangleF rect = new System.Drawing.RectangleF( 0, 0, 250, 120 );
+            CharacterRange[] ranges = { new System.Drawing.CharacterRange( 0, value.Length ) };
+            Region[] regions = new System.Drawing.Region[ 1 ];
+
+            format.SetMeasurableCharacterRanges( ranges );
+            regions = graphics.MeasureCharacterRanges( value, font, rect, format );
+            rect = regions[ 0 ].GetBounds( graphics );
+
+            return ( int )( rect.Right + 1.0f );
         }
 
         /// <summary>
